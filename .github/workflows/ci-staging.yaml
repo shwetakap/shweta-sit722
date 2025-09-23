@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+        
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -30,7 +31,10 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-
+      - name: List repository
+        run: ls -R
+      
+      
       # Install dependencies
       - name: Install dependencies - Customer Service
         working-directory: backend/customer-service
