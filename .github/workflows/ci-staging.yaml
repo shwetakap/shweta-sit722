@@ -35,7 +35,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+     
       # Order DB
       order_db:
         image: postgres:15
@@ -50,6 +50,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      #Customer DB
+      customer_db:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: customer
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
 
     steps:
       # 1. Checkout the repository code to the runner
@@ -98,6 +113,17 @@ jobs:
         run: |
           pytest tests --maxfail=1 --disable-warnings -q
 
+      - name: Run customer_service tests
+        working-directory: backend/customer_service
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5433
+          POSTGRES_DB: customers
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        run: |
+          pytest tests --maxfail=1 --disable-warnings -q
+
   
 
   # ---------------------------
@@ -133,6 +159,12 @@ jobs:
       run: |
         docker build -t ${{ env.ACR_LOGIN_SERVER }}/order_service:latest ./backend/order_service/
         docker push ${{ env.ACR_LOGIN_SERVER }}/order_service:latest
+
+    - name: Build and Push Customer Service Image
+      run: |
+        docker build -t ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest ./backend/customer_service/
+        docker push ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest
+
 
     # Logout from Azure for security (runs even if image push fails)
     - name: Logout from Azure
