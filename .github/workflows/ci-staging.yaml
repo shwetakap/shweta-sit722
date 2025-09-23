@@ -19,7 +19,6 @@ env:
 
 jobs:
   # Job 1: Run tests for all services
-  jobs:
   test_backends:
     runs-on: ubuntu-latest
 
