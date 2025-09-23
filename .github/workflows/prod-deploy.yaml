@@ -1,0 +1,35 @@
+
+name: Production Deployment - SIT722
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Services to Production
+        run: |
+          kubectl apply -f k8s/customer-deployment.yaml -n ecommerce
+          kubectl apply -f k8s/order-deployment.yaml -n ecommerce
+          kubectl apply -f k8s/product-deployment.yaml -n ecommerce
+          kubectl apply -f k8s/frontend-deployment.yaml -n ecommerce
+
+      - name: Post-Deployment Health Check
+        run: |
+          curl http://frontend.ecommerce.svc.cluster.local/health
+          curl http://order-service.ecommerce.svc.cluster.local/health
