@@ -37,15 +37,15 @@ jobs:
       
       # Install dependencies
       - name: Install dependencies - Customer Service
-        working-directory: backend/customer-service
+        working-directory: backend/customer_service
         run: npm install
 
       - name: Install dependencies - Order Service
-        working-directory: backend/order-service
+        working-directory: backend/order_service
         run: npm install
 
       - name: Install dependencies - Product Service
-        working-directory: backend/product-service
+        working-directory: backend/product_service
         run: npm install
 
       - name: Install dependencies - Frontend
