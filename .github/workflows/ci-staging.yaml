@@ -29,26 +29,48 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd customer-service && npm install
-          cd ../order-service && npm install
-          cd ../product-service && npm install
-          cd ../frontend && npm install
+          pip install --upgrade pip
+          # Loop through each backend service folder
+          for req in backend/*/requirements.txt; do
+            echo "Installing $req"
+            pip install -r "$req"
+          done
+          # Install CI tools
+          pip install pytest httpx
 
-      - name: Run customer_service tests
-        working-directory: customer-service
-        run: npm test
-
+     -  name: Run product_service tests
+        working-directory: backend/product_service
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: products
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        run: |
+          pytest tests --maxfail=1 --disable-warnings -q
+      
+      # 6. Run tests for order service
       - name: Run order_service tests
-        working-directory: order-service
-        run: npm test
-
-      - name: Run product_service tests
-        working-directory: product-service
-        run: npm test
-
-      - name: Run frontend tests
-        working-directory: frontend
-        run: npm test
+        working-directory: backend/order_service
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5433
+          POSTGRES_DB: orders
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        run: |
+          pytest tests --maxfail=1 --disable-warnings -q
+      
+      - name: Run customer_service tests
+        working-directory: backend/customer_service
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5433
+          POSTGRES_DB: orders
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        run: |
+          pytest tests --maxfail=1 --disable-warnings -q
 
   build_and_push_images:
     runs-on: ubuntu-latest
