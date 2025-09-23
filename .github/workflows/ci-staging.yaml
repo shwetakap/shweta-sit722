@@ -53,15 +53,15 @@ jobs:
       # Run tests
       - name: Run Customer Service Tests
         working-directory: backend/customer_service
-        run: pytest tests --maxfail=1 --disable-warnings -q
+        run: npm test
 
       - name: Run Order Service Tests
         working-directory: backend/order_service
-        run: pytest tests --maxfail=1 --disable-warnings -q
+        run: npm test
 
       - name: Run Product Service Tests
         working-directory: backend/product_service
-        run: pytest tests --maxfail=1 --disable-warnings -q
+        run: npm test
 
       # Optional: Frontend tests if you have npm tests
       - name: Set up Node.js
