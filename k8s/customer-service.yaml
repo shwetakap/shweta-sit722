@@ -3,7 +3,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: customer-service # Deployment name matches
+  name: customer-service # Deploymen1t name matches
   labels:
     app: customer-service
 spec:
