@@ -89,7 +89,7 @@ jobs:
           # Install CI tools
           pip install pytest httpx
 
-      # 5. Run tests for product service
+      # 5. Run tests fo2Sr product service
       - name: Run product_service tests
         working-directory: backend/product_service
         env:
