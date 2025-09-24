@@ -5,7 +5,8 @@ on:
     workflows: ["Backend CI - Test, Build and Push Images to ACR"] # exact CI workflow name
     types:
       - completed
-      
+    workflow_dispatch:
+   
 env:
   ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
   IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
