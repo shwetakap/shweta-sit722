@@ -58,38 +58,9 @@ jobs:
         run: |
           RG_NAME=sk10-rg
           az container create \
-            --resource-group $RG_NAME \
+             --resource-group $RG_NAME \
             --name product-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }} \
             --cpu 1 --memory 1 \
             --restart-policy Never \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
-
-      - name: Deploy Order Service
-        run: |
-          RG_NAME=sk10-rg
-          az container create \
-            --resource-group $RG_NAME \
-            --name order-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/order_service:${{ env.IMAGE_TAG }} \
-            --cpu 1 --memory 1 \
-            --restart-policy Never \
-            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
-
-      - name: Deploy Customer Service
-        run: |
-          RG_NAME=sk10-rg
-          az container create \
-            --resource-group $RG_NAME \
-            --name customer-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:${{ env.IMAGE_TAG }} \
-            --cpu 1 --memory 1 \
-            --restart-policy Never \
-            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
-
-      - name: Run Simple Acceptance Tests
-        run: |
-          echo "Run trivial acceptance tests here, e.g., curl /health endpoints"
-
-      - name: Logout from Azure
-        run: az logout
