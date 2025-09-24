@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     }
 
-    // Function to format curresncy
+    // Function to format curresmncy
     function formatCurrency(amount) {
         return `$${parseFloat(amount).toFixed(2)}`;
     }
