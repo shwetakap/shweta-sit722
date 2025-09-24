@@ -172,3 +172,65 @@ jobs:
     - name: Logout from Azure
       run: az logout
       if: always()
+
+
+ # Stage 3: Build, Push, Deploy Staging
+  # ---------------------------
+  deploy_staging:
+    runs-on: ubuntu-latest
+    #sneeds: test_and_lint_backends
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create Temporary Staging Environment
+        run: |
+          RG_NAME=staging-rg-${GITHUB_RUN_ID}
+          echo "Creating resource group: $RG_NAME"
+          az group create --name $RG_NAME --location eastus
+
+          # Deploy Product Service
+          az container create \
+            --resource-group $RG_NAME \
+            --name product-service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/product_service:latest \
+            --cpu 1 --memory 1 \
+            --restart-policy Never \
+            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+
+          # Deploy Order Service
+          az container create \
+            --resource-group $RG_NAME \
+            --name order-service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
+            --cpu 1 --memory 1 \
+            --restart-policy Never \
+            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+
+          # Deploy Customer Service
+          az container create \
+            --resource-group $RG_NAME \
+            --name customer-service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
+            --cpu 1 --memory 1 \
+            --restart-policy Never \
+            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+
+      - name: Run Simple Acceptance Tests
+        run: |
+          echo "Running trivial acceptance tests..."
+          # Example: curl http://<container-ip>:<port>/health
+
+      - name: Destroy Staging Environment
+        run: |
+          echo "Deleting temporary staging resource group: $RG_NAME"
+          az group delete --name $RG_NAME --yes --no-wait
+
+      - name: Logout from Azure
+        run: az logout
