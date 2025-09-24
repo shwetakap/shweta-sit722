@@ -56,11 +56,13 @@ jobs:
 
       - name: Deploy Product Service
         run: |
-          RG_NAME=sk10-rg
-          az container create \
-             --resource-group $RG_NAME \
+            az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} \
+              -p ${{ secrets.AZURE_CLIENT_SECRET }} \
+              --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+            az container create \
+            --resource-group sk10-rg \
             --name product-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }} \
             --cpu 1 --memory 1 \
-            --restart-policy Never \
-            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+            --restart-policy Never
