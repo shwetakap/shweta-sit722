@@ -175,10 +175,24 @@ jobs:
 
 
  # Stage 3: Build, Push, Deploy Staging
-  # ---------------------------
+  name: Backend CI - Deploy to Staging
+
+on:
+  workflow_run:
+    workflows: ["Backend CI - Test, Build and Push Images to ACR"]
+    types:
+      - completed
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
+  RG_NAME: sk10-rg   # Existing staging resource group
+
+jobs:
   deploy_staging:
     runs-on: ubuntu-latest
-    #sneeds: test_and_lint_backends
+    #sif: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'testing' }}
 
     steps:
       - name: Checkout repository
@@ -189,33 +203,30 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create Temporary Staging Environment
+      - name: Deploy Product Service
         run: |
-          RG_NAME=staging-rg-${GITHUB_RUN_ID}
-          echo "Creating resource group: $RG_NAME"
-          az group create --name $RG_NAME --location eastus
-
-          # Deploy Product Service
           az container create \
-            --resource-group $RG_NAME \
+            --resource-group ${{ env.RG_NAME }} \
             --name product-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/product_service:latest \
             --cpu 1 --memory 1 \
             --restart-policy Never \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
 
-          # Deploy Order Service
+      - name: Deploy Order Service
+        run: |
           az container create \
-            --resource-group $RG_NAME \
+            --resource-group ${{ env.RG_NAME }} \
             --name order-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
             --cpu 1 --memory 1 \
             --restart-policy Never \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
 
-          # Deploy Customer Service
+      - name: Deploy Customer Service
+        run: |
           az container create \
-            --resource-group $RG_NAME \
+            --resource-group ${{ env.RG_NAME }} \
             --name customer-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
             --cpu 1 --memory 1 \
@@ -224,13 +235,7 @@ jobs:
 
       - name: Run Simple Acceptance Tests
         run: |
-          echo "Running trivial acceptance tests..."
-          # Example: curl http://<container-ip>:<port>/health
-
-      - name: Destroy Staging Environment
-        run: |
-          echo "Deleting temporary staging resource group: $RG_NAME"
-          az group delete --name $RG_NAME --yes --no-wait
+          echo "Run trivial acceptance tests here, e.g., curl /health endpoints"
 
       - name: Logout from Azure
         run: az logout
