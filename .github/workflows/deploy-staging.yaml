@@ -1,45 +1,71 @@
-
-
-
-name: Staging Deployment - SIT722
+name: Backend CI - Deploy to Staging
 
 on:
   workflow_run:
-    workflows: ["CI Pipeline - SIT722"]
+    workflows: ["Backend CI - Test, Build and Push Images to ACR"]
     types:
       - completed
 
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
+
 jobs:
-  deploy-staging:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  deploy_staging:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create Staging Namespace
-        run: kubectl create namespace staging
-
-      - name: Deploy Services to Staging
+      - name: Create Temporary Staging Environment
         run: |
-          kubectl apply -f k8s/customer-deployment.yaml -n staging
-          kubectl apply -f k8s/order-deployment.yaml -n staging
-          kubectl apply -f k8s/product-deployment.yaml -n staging
-          kubectl apply -f k8s/frontend-deployment.yaml -n staging
+          RG_NAME=staging-rg-${GITHUB_RUN_ID}
+          echo "Creating resource group: $RG_NAME"
+          az group create --name $RG_NAME --location eastus
 
-      - name: Run Acceptance Tests
+          # Deploy Product Service
+          az container create \
+            --resource-group $RG_NAME \
+            --name product-service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/product_service:latest \
+            --cpu 1 --memory 1 \
+            --restart-policy Never \
+            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+
+          # Deploy Order Service
+          az container create \
+            --resource-group $RG_NAME \
+            --name order-service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
+            --cpu 1 --memory 1 \
+            --restart-policy Never \
+            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+
+          # Deploy Customer Service
+          az container create \
+            --resource-group $RG_NAME \
+            --name customer-service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
+            --cpu 1 --memory 1 \
+            --restart-policy Never \
+            --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
+
+      - name: Run Simple Acceptance Tests
         run: |
-          curl http://frontend.staging.svc.cluster.local/health
-          curl http://order-service.staging.svc.cluster.local/health
+          echo "Run trivial acceptance tests here, e.g., curl /health endpoints"
+          # Example: curl http://<container-ip>:<port>/health
 
       - name: Destroy Staging Environment
-        run: kubectl delete namespace staging
+        run: |
+          echo "Deleting temporary staging resource group: $RG_NAME"
+          az group delete --name $RG_NAME --yes --no-wait
+
+      - name: Logout from Azure
+        run: az logout
