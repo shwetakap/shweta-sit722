@@ -58,8 +58,8 @@ jobs:
         run: |
            
 
-             docker pull ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }}
-             docker run -d --name product-service -p 8081:80 ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }}
+             docker pull ${{ env.ACR_LOGIN_SERVER }}/product_service:latest
+             docker run -d --name product-service -p 8081:80 ${{ env.ACR_LOGIN_SERVER }}/product_service:latest
 
 
       - name: Run Simple Acceptance Tests
