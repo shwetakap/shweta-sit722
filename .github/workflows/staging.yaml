@@ -9,6 +9,8 @@ on:
 env:
   ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
   IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
+  RG_NAME: staging-rg-${{ github.run_id }}
+
 
 jobs:
   deploy_staging:
@@ -34,8 +36,9 @@ jobs:
           az container create \
             --resource-group $RG_NAME \
             --name product-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/product_service:latest \
+            --image ${{ env.ACR_LOGIN_SERVER }}/product-service:latest \
             --cpu 1 --memory 1 \
+            --os-type Linux \
             --os-type Linux \
             --restart-policy Never \
             --registry-username ${{ secrets.ACR_USERNAME }} \
@@ -46,10 +49,13 @@ jobs:
           az container create \
             --resource-group $RG_NAME \
             --name order-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
+            --image ${{ env.ACR_LOGIN_SERVER }}/order-service:latest \
             --cpu 1 --memory 1 \
             --os-type Linux \
+            --os-type Linux \
             --restart-policy Never \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
@@ -58,10 +64,13 @@ jobs:
           az container create \
             --resource-group $RG_NAME \
             --name customer-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
+            --image ${{ env.ACR_LOGIN_SERVER }}/customer-service:latest \
             --cpu 1 --memory 1 \
             --os-type Linux \
+            --os-type Linux \
             --restart-policy Never \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
