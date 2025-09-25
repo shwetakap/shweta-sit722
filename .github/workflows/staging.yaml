@@ -1,7 +1,10 @@
 name: Backend CI - Deploy to Staging
 
 on:
-  workflow_run:
+ push:
+    branches:
+      - testing
+ workflow_run:
     workflows: ["Backend CI - Test, Build and Push Images to ACR"] # exact CI workflow name
     types:
       - completed
