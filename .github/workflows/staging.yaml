@@ -34,8 +34,8 @@ jobs:
           # Deploy Product Service
           az container create \
             --resource-group $RG_NAME \
-            --name product-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/product_service:$IMAGE_TAG \
+            --name product_service-staging \
+            --image ${{ env.ACR_LOGIN_SERVER }}/product-service:$IMAGE_TAG \
             --cpu 1 --memory 1 \
             --os-type Linux \
             --restart-policy Never \
@@ -47,7 +47,7 @@ jobs:
           az container create \
             --resource-group $RG_NAME \
             --name order-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/order_service:$IMAGE_TAG \
+            --image ${{ env.ACR_LOGIN_SERVER }}/order-service:$IMAGE_TAG \
             --cpu 1 --memory 1 \
             --os-type Linux \
             --restart-policy Never \
@@ -59,7 +59,7 @@ jobs:
           az container create \
             --resource-group $RG_NAME \
             --name customer-service-staging \
-            --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:$IMAGE_TAG \
+            --image ${{ env.ACR_LOGIN_SERVER }}/customer-service:$IMAGE_TAG \
             --cpu 1 --memory 1 \
             --os-type Linux \
             --restart-policy Never \
