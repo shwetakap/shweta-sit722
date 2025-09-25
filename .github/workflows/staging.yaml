@@ -34,7 +34,7 @@ jobs:
           # Deploy Product Service
           az container create \
             --resource-group $RG_NAME \
-            --name product_service-staging \
+            --name product-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/product-service:$IMAGE_TAG \
             --cpu 1 --memory 1 \
             --os-type Linux \
