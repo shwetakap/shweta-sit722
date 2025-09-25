@@ -150,7 +150,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build_and_push_images
     env:
-      STAGING_RG: staging-rg-${{ github.run_id }}
+      STAGING_RG: staging-rg
 
     steps:
       - name: Checkout repository
@@ -161,39 +161,41 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Create staging resource group
-        run: az group create -n $STAGING_RG -l australiaeast
+      
 
       - name: Deploy Product Service to ACI
         run: |
           az container create \
-            --resource-group $STAGING_RG \
-            --name product-staging-${{ github.run_id }} \
-            --image ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }} \
-            --cpu 1 --memory 1.5 \
-            --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
-            --restart-policy Never
+          --resource-group ${{ env.STAGING_RG }} \
+          --name product-service \
+          --image ${{ env.ACR_LOGIN_SERVER }}/product_service:latest \
+          --dns-name-label product-staging \
+          --ports 80 \
+          --restart-policy OnFailure
 
-      - name: Deploy Order Service to ACI
+
+       # Deploy Order Service to Staging
+      - name: Deploy Order Service
         run: |
-          az container create \
-            --resource-group $STAGING_RG \
-            --name order-staging-${{ github.run_id }} \
-            --image ${{ env.ACR_LOGIN_SERVER }}/order_service:${{ env.IMAGE_TAG }} \
-            --cpu 1 --memory 1.5 \
-            --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
-            --restart-policy Never
+         az container create \
+          --resource-group ${{ env.STAGING_RG }} \
+          --name order-service \
+          --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
+          --dns-name-label order-staging \
+          --ports 80 \
+          --restart-policy OnFailure
 
-      - name: Deploy Customer Service to ACI
+    # Deploy Customer Service to Staging
+      - name: Deploy Customer Service
         run: |
-          az container create \
-            --resource-group $STAGING_RG \
-            --name customer-staging-${{ github.run_id }} \
-            --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:${{ env.IMAGE_TAG }} \
-            --cpu 1 --memory 1.5 \
-            --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
-            --restart-policy Never
-
+         az container create \
+          --resource-group ${{ env.STAGING_RG }} \
+          --name customer-service \
+          --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
+          --dns-name-label customer-staging \
+          --ports 80 \
+          --restart-policy OnFailure
+      
       - name: Run Acceptance Test (simple)
         run: |
           echo "Simulating acceptance tests..."
