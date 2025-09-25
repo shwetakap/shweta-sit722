@@ -57,7 +57,7 @@ jobs:
           kubectl apply -f secrets.yaml
           kubectl apply -f product-db.yaml
           kubectl apply -f order-db.yaml
-          kubectl apply -f customer_db.yaml
+          kubectl apply -f customer-db.yaml
 
       - name: Deploy backend microservices
         run: |
