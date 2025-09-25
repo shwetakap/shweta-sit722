@@ -1,6 +1,7 @@
 name: Backend CI - Deploy to Staging
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["Backend CI - Test, Build and Push Images to ACR"]  # Stage 1 workflow name
     types:
