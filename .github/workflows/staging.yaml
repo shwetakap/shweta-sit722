@@ -49,7 +49,10 @@ jobs:
             --name order-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
             --cpu 1 --memory 1 \
+            --os-type Linux \
             --restart-policy Never \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
 
           # Deploy Customer Service
@@ -58,7 +61,10 @@ jobs:
             --name customer-service-staging \
             --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
             --cpu 1 --memory 1 \
+            --os-type Linux \
             --restart-policy Never \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
 
       - name: Run Simple Acceptance Tests
