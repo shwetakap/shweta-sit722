@@ -1,4 +1,4 @@
-name: CD - Deploy Backend Services to AKS
+name: Deploy Backend Services to AKS
 
 on:
  
@@ -49,10 +49,7 @@ jobs:
         run: |
           az aks get-credentials --resource-group $AKS_RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
 
-      - name: Attach ACR
-        run: |
-          az aks update --name $AKS_CLUSTER_NAME --resource-group $AKS_RESOURCE_GROUP --attach-acr $AKS_ACR_NAME
-
+      
       - name: Deploy backend infrastructure
         run: |
           cd k8s/

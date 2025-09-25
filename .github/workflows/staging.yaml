@@ -1,11 +1,9 @@
 name: Deploy to Staging
 
 on:
- push:
-    branches:
-      - staging
-
-    workflow_dispatch:
+  workflows: ["Test, Build and Push Images to ACR"]  # Stage 1 workflow name
+    types:
+      - completed
    
 env:
   ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
