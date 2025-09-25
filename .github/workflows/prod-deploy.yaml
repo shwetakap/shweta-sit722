@@ -6,8 +6,7 @@ on:
     branches:
       - prod 
   workflow_dispatch:
-    
-  inputs:
+   inputs:
       aks_cluster_name:
         description: 'Name of the AKS Cluster to deploy to'
         required: true
