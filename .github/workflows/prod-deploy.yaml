@@ -71,8 +71,8 @@ jobs:
           PRODUCT_IP=""
           ORDER_IP=""
           for i in $(seq 1 60); do
-            PRODUCT_IP=$(kubectl get service product-service-w08e1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            ORDER_IP=$(kubectl get service order-service-w08e1 -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            PRODUCT_IP=$(kubectl get service product-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            ORDER_IP=$(kubectl get service order-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             if [[ -n "$PRODUCT_IP" && -n "$ORDER_IP" ]]; then
               break
             fi
