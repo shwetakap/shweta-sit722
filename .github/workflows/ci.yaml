@@ -172,6 +172,9 @@ jobs:
           --dns-name-label product-staging \
           --ports 80 \
           --restart-policy OnFailure
+          --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }}
 
 
        # Deploy Order Service to Staging
@@ -184,6 +187,10 @@ jobs:
           --dns-name-label order-staging \
           --ports 80 \
           --restart-policy OnFailure
+          --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }}
+
 
     # Deploy Customer Service to Staging
       - name: Deploy Customer Service
@@ -195,6 +202,10 @@ jobs:
           --dns-name-label customer-staging \
           --ports 80 \
           --restart-policy OnFailure
+          --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }}
+
       
       - name: Run Acceptance Test (simple)
         run: |
