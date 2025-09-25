@@ -175,7 +175,9 @@ jobs:
             --os-type Linux \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
-            --registry-password ${{ secrets.ACR_PASSWORD }}
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --cpu 1 \
+            --memory 1.5 
 
 
        # Deploy Order Service to Staging
@@ -190,7 +192,9 @@ jobs:
             --restart-policy OnFailure \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
-            --registry-password ${{ secrets.ACR_PASSWORD }}
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --cpu 1 \
+            --memory 1.5 
 
 
     # Deploy Customer Service to Staging
@@ -205,7 +209,9 @@ jobs:
           --restart-policy OnFailure \
           --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
           --registry-username ${{ secrets.ACR_USERNAME }} \
-          --registry-password ${{ secrets.ACR_PASSWORD }}
+          --registry-password ${{ secrets.ACR_PASSWORD }} \
+          --cpu 1 \
+          --memory 1.5 
 
       
       - name: Run Acceptance Test (simple)
