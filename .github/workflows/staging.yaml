@@ -4,10 +4,7 @@ on:
  push:
     branches:
       - testing
- workflow_run:
-    workflows: ["Backend CI - Test, Build and Push Images to ACR"] # exact CI workflow name
-    types:
-      - completed
+
     workflow_dispatch:
    
 env:
