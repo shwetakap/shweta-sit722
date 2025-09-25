@@ -1,11 +1,11 @@
 name: Backend CI - Deploy to Staging
 
 on:
- push:
-    branches:
-      - staging
-
-    workflow_dispatch:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Backend CI - Test, Build and Push Images to ACR"]  # Stage 1 workflow name
+    types:
+      - completed
    
 env:
   ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
@@ -40,6 +40,7 @@ jobs:
             --image ${{ env.ACR_LOGIN_SERVER }}/product-service:latest \
             --cpu 1 --memory 1 \
             --os-type Linux \
+            --os-type Linux \
             --restart-policy Never \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }} \
@@ -52,7 +53,10 @@ jobs:
             --image ${{ env.ACR_LOGIN_SERVER }}/order-service:latest \
             --cpu 1 --memory 1 \
             --os-type Linux \
+            --os-type Linux \
             --restart-policy Never \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
@@ -64,7 +68,10 @@ jobs:
             --image ${{ env.ACR_LOGIN_SERVER }}/customer-service:latest \
             --cpu 1 --memory 1 \
             --os-type Linux \
+            --os-type Linux \
             --restart-policy Never \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }} \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }}
