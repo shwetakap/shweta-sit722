@@ -186,7 +186,7 @@ jobs:
             --image ${{ env.ACR_LOGIN_SERVER }}/order_service:latest \
             --dns-name-label order-staging \
             --ports 80 \
-            --restart-policy OnFailure
+            --restart-policy OnFailure \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }}
@@ -201,7 +201,7 @@ jobs:
           --image ${{ env.ACR_LOGIN_SERVER }}/customer_service:latest \
           --dns-name-label customer-staging \
           --ports 80 \
-          --restart-policy OnFailure
+          --restart-policy OnFailure \
           --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
           --registry-username ${{ secrets.ACR_USERNAME }} \
           --registry-password ${{ secrets.ACR_PASSWORD }}
