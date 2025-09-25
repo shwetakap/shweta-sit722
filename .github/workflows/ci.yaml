@@ -106,7 +106,10 @@ jobs:
         run: pytest tests --maxfail=1 --disable-warnings -q
 
   # ---------------------------
+
   # Stage 2: Builsd and Push Docker Images
+  # Stage 2: Build and Pussh Docker Images
+
   # ---------------------------
   build_and_push_images:
     runs-on: ubuntu-latest
