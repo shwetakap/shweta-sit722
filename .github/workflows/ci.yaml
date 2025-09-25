@@ -52,14 +52,17 @@ jobs:
         run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
 
 
-
+      - name: Build and Push Product Service Image
+        run: |
+        docker build -t ${{ env.ACR_LOGIN_SERVER }}/product_service:latest ./backend/product_service/
+        docker push ${{ env.ACR_LOGIN_SERVER }}/product_service:latest
 
       - name: Deploy Product Service
         run: |
            
 
              docker pull ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }}
-             docker run -d --name product-service -p 8081:80 ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }}
+             docker run -d --name product-service -p 8081:80 ${{ env.ACR_LOGIN_SERVER }}/product_service:latest
 
 
       - name: Run Simple Acceptance Tests
