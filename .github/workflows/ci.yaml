@@ -171,7 +171,7 @@ jobs:
             --image ${{ env.ACR_LOGIN_SERVER }}/product_service:latest \
             --dns-name-label product-staging \
             --ports 80 \
-            --restart-policy OnFailure
+            --restart-policy OnFailure \
             --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
             --registry-username ${{ secrets.ACR_USERNAME }} \
             --registry-password ${{ secrets.ACR_PASSWORD }}
