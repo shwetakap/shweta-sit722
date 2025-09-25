@@ -1,4 +1,4 @@
-name: Backend CI - Test, Build and Push Images to ACR
+name: Test, Build and Push Images to ACR
 
 on:
   push:

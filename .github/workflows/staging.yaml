@@ -1,4 +1,4 @@
-name: Backend CI - Deploy to Staging
+name: Deploy to Staging
 
 on:
  push:

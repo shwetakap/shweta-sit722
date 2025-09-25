@@ -60,12 +60,14 @@ jobs:
           kubectl apply -f secrets.yaml
           kubectl apply -f product-db.yaml
           kubectl apply -f order-db.yaml
+          kubectl apply -f customer_db.yaml
 
       - name: Deploy backend microservices
         run: |
           cd k8s/
           kubectl apply -f product-service.yaml
           kubectl apply -f order-service.yaml
+          kubectl apply -f customer-service.yaml
 
       - name: Wait for LoadBalancer IPs
         run: |
