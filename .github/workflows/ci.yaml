@@ -12,7 +12,7 @@ env:
 
 jobs:
   # ---------------------------
-  # Stage 1: Run tests
+  # Stage 1: Run atests
   # ---------------------------
   test_and_lint_backends:
     runs-on: ubuntu-latest
