@@ -1,0 +1,114 @@
+name: Staging Deployment
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Backend CI - Test, Build, Scan and Push Images to ACR"]
+    types:
+      - completed
+
+env:
+  TF_WORKING_DIR: ./infra   # Terraform folder
+  RESOURCE_GROUP: sk-hd-staging
+  AKS_NAME: skhd-aks
+  LOCATION: australiaeast
+
+jobs:
+  terraform_apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.4
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: terraform apply -auto-approve
+
+  deploy_services:
+    name: Deploy Backend Services to AKS
+    runs-on: ubuntu-latest
+    needs: terraform_apply
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Get AKS Credentials
+        run: |
+          az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_NAME }}
+
+      - name: Inject CI IMAGE_TAG into manifests
+        run: |
+          IMAGE_TAG=${{ github.event.workflow_run.outputs.IMAGE_TAG }}
+          sed -i "s|image: .*/product_service:.*|image: myacr.azurecr.io/product_service:$IMAGE_TAG|" k8s/product-service.yaml
+          sed -i "s|image: .*/order_service:.*|image: myacr.azurecr.io/order_service:$IMAGE_TAG|" k8s/order-service.yaml
+          sed -i "s|image: .*/customer_service:.*|image: myacr.azurecr.io/customer_service:$IMAGE_TAG|" k8s/customer-service.yaml
+
+      - name: Deploy backend infrastructure
+        run: |
+          kubectl apply -f k8s/configmaps.yaml
+          kubectl apply -f k8s/secrets.yaml
+          kubectl apply -f k8s/product-db.yaml
+          kubectl apply -f k8s/order-db.yaml
+          kubectl apply -f k8s/customer-db.yaml
+
+      - name: Deploy backend microservices
+        run: |
+          kubectl apply -f k8s/product-service.yaml
+          kubectl apply -f k8s/order-service.yaml
+          kubectl apply -f k8s/customer-service.yaml
+
+      - name: Wait for Services to be Ready
+        run: |
+          for svc in product-service order-service customer-service; do
+            kubectl rollout status deployment/$svc -n default
+          done
+
+      - name: Run Postman Acceptance Tests
+        run: |
+          newman run tests/staging_acceptance.json \
+            --environment tests/staging_env.json \
+            --reporters cli,junit \
+            --reporter-junit-export test-results/staging_acceptance.xml
+
+  terraform_destroy:
+    name: Destroy Staging Resources
+    runs-on: ubuntu-latest
+    needs: deploy_services
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.4
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: terraform destroy -auto-approve

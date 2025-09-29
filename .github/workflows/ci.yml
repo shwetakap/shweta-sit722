@@ -1,0 +1,184 @@
+name: Backend CI - Test, Build, Scan and Push Images to ACR
+
+on:
+  push:
+    branches:
+      - testing
+  workflow_dispatch:
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  IMAGE_TAG: ${{ github.sha }}-${{ github.run_id }}
+
+jobs:
+  # ---------------------------
+  # Stage 1: Run Unit Tests
+  # ---------------------------
+  test_and_lint_backends:
+    runs-on: ubuntu-latest
+    services:
+      product_db:
+        image: bitnami/postgresql:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: products
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      order_db:
+        image: bitnami/postgresql:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: orders
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      customer_db:
+        image: bitnami/postgresql:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: customers
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          for req in backend/*/requirements.txt; do
+            echo "Installing $req"
+            pip install -r "$req"
+          done
+          pip install pytest httpx
+
+      - name: Run product_service tests
+        working-directory: backend/product_service
+        run: pytest tests --maxfail=1 --disable-warnings -q
+
+      - name: Run customer_service tests
+        working-directory: backend/customer_service
+        run: pytest tests --maxfail=1 --disable-warnings -q
+
+      - name: Run order_service tests
+        working-directory: backend/order_service
+        run: pytest tests --maxfail=1 --disable-warnings -q
+
+  # ---------------------------
+  # Stage 2: SonarQube Code Analysis
+  # ---------------------------
+  sonarqube_analysis:
+    runs-on: ubuntu-latest
+    needs: test_and_lint_backends
+    steps:
+      - uses: actions/checkout@v4
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        with:
+          args: >
+            -Dsonar.projectKey=my-ecommerce
+            -Dsonar.organization=my-org
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
+  # ---------------------------
+  # Stage 3: Snyk Vulnerability Scan
+  # ---------------------------
+  snyk_scan:
+    runs-on: ubuntu-latest
+    needs: test_and_lint_backends
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/python-3.10@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: test
+
+  # ---------------------------
+  # Stage 4: Build and Push Docker Images + SBOM
+  # ---------------------------
+  build_and_push_images:
+    runs-on: ubuntu-latest
+    needs: [sonarqube_analysis, snyk_scan]
+    outputs:
+      IMAGE_TAG: ${{ steps.set_image_tag.outputs.IMAGE_TAG }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login to Azure Container Registry
+        run: az acr login --name ${{ env.ACR_LOGIN_SERVER }}
+
+      - name: Build and Push Product Service Image
+        run: |
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }} ./backend/product_service/
+          docker push ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }}
+
+      - name: Build and Push Order Service Image
+        run: |
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/order_service:${{ env.IMAGE_TAG }} ./backend/order_service/
+          docker push ${{ env.ACR_LOGIN_SERVER }}/order_service:${{ env.IMAGE_TAG }}
+
+      - name: Build and Push Customer Service Image
+        run: |
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/customer_service:${{ env.IMAGE_TAG }} ./backend/customer_service/
+          docker push ${{ env.ACR_LOGIN_SERVER }}/customer_service:${{ env.IMAGE_TAG }}
+
+      # SBOM & Vulnerability Report
+      - name: Install Syft and Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM and Scan Product Service
+        run: |
+          syft ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }} -o json > product_service_sbom.json
+          grype ${{ env.ACR_LOGIN_SERVER }}/product_service:${{ env.IMAGE_TAG }} --fail-on critical
+
+      - name: Generate SBOM and Scan Order Service
+        run: |
+          syft ${{ env.ACR_LOGIN_SERVER }}/order_service:${{ env.IMAGE_TAG }} -o json > order_service_sbom.json
+          grype ${{ env.ACR_LOGIN_SERVER }}/order_service:${{ env.IMAGE_TAG }} --fail-on critical
+
+      - name: Generate SBOM and Scan Customer Service
+        run: |
+          syft ${{ env.ACR_LOGIN_SERVER }}/customer_service:${{ env.IMAGE_TAG }} -o json > customer_service_sbom.json
+          grype ${{ env.ACR_LOGIN_SERVER }}/customer_service:${{ env.IMAGE_TAG }} --fail-on critical
+
+      - name: Set IMAGE_TAG output
+        id: set_image_tag
+        run: echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> $GITHUB_OUTPUT
+
+      - name: Logout from Azure
+        if: always()
+        run: az logout

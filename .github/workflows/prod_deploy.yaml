@@ -1,0 +1,90 @@
+name: CD - Deploy Backend Services to AKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      aks_cluster_name:
+        description: 'Name of the AKS Cluster to deploy to'
+        required: true
+        default: 'sk10-aks'
+      aks_resource_group:
+        description: 'Resource Group of the AKS Cluster'
+        required: true
+        default: 'sk10-rg'
+      aks_acr_name:
+        description: 'Name of ACR'
+        required: true
+        default: 'sk10acr'
+      image_tag:
+        description: 'CI-tested image tag'
+        required: true
+        default: ''
+
+jobs:
+  deploy_backend:
+    runs-on: ubuntu-latest
+    environment: Production
+
+    env:
+      AKS_CLUSTER_NAME: ${{ github.event.inputs.aks_cluster_name || 'sk10-aks' }}
+      AKS_RESOURCE_GROUP: ${{ github.event.inputs.aks_resource_group || 'sk10-rg' }}
+      AKS_ACR_NAME: ${{ github.event.inputs.aks_acr_name || 'sk10acr' }}
+      IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          enable-AzPSSession: true
+
+      - name: Set Kubernetes context
+        run: |
+          az aks get-credentials --resource-group $AKS_RESOURCE_GROUP --name $AKS_CLUSTER_NAME --overwrite-existing
+
+      - name: Inject CI-tested image tags into manifests
+        run: |
+          sed -i "s|image: .*/product_service:.*|image: $AKS_ACR_NAME/product_service:$IMAGE_TAG|" k8s/product-service.yaml
+          sed -i "s|image: .*/order_service:.*|image: $AKS_ACR_NAME/order_service:$IMAGE_TAG|" k8s/order-service.yaml
+
+      - name: Deploy backend infrastructure
+        run: |
+          kubectl apply -f k8s/configmaps.yaml
+          kubectl apply -f k8s/secrets.yaml
+          kubectl apply -f k8s/product-db.yaml
+          kubectl apply -f k8s/order-db.yaml
+
+      - name: Deploy backend microservices
+        run: |
+          kubectl apply -f k8s/product-service.yaml
+          kubectl apply -f k8s/order-service.yaml
+
+      - name: Wait for LoadBalancer IPs
+        run: |
+          PRODUCT_IP=""
+          ORDER_IP=""
+          for i in $(seq 1 60); do
+            PRODUCT_IP=$(kubectl get service product-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            ORDER_IP=$(kubectl get service order-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            if [[ -n "$PRODUCT_IP" && -n "$ORDER_IP" ]]; then break; fi
+            sleep 5
+          done
+          if [[ -z "$PRODUCT_IP" || -z "$ORDER_IP" ]]; then
+            echo "Error: LoadBalancer IPs not assigned"
+            exit 1
+          fi
+          echo "PRODUCT_IP=$PRODUCT_IP" >> $GITHUB_ENV
+          echo "ORDER_IP=$ORDER_IP" >> $GITHUB_ENV
+
+      - name: Run PROD smoke tests (Postman/Newman)
+        run: |
+          newman run tests/prod_smoke.json \
+            --environment tests/prod_env.json \
+            --reporters cli,junit \
+            --reporter-junit-export test-results/prod_smoke.xml
+
+      - name: Azure Logout
+        run: az logout
