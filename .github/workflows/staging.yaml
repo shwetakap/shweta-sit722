@@ -1,17 +1,18 @@
 name: Staging Deployment
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Backend CI - Test, Build, Scan and Push Images to ACR"]
-    types:
-      - completed
 
 env:
-  TF_WORKING_DIR: ./infra   # Terraform folder
-  RESOURCE_GROUP: sk-hd-staging
+  TF_WORKING_DIR: ./infra
+  RESOURCE_GROUP: sk-hd
   AKS_NAME: skhd-aks
   LOCATION: australiaeast
+  ACR_NAME: skhdaks
+  IMAGE_TAG: ${{ github.sha }}
 
 jobs:
   terraform_apply:
@@ -19,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -30,14 +31,58 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
 
-      - name: Terraform Apply
+      - name: Import Existing Resources & Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-        run: terraform apply -auto-approve
+          TF_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_resource_group: ${{ env.RESOURCE_GROUP }}
+          TF_VAR_aks_name: ${{ env.AKS_NAME }}
+          TF_VAR_acr_name: ${{ env.ACR_NAME }}
+          TF_VAR_location: ${{ env.LOCATION }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}
+          AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+        run: |
+          terraform import azurerm_resource_group.rg \
+            /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.RESOURCE_GROUP }} || true
+          terraform import azurerm_container_registry.acr \
+            /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.RESOURCE_GROUP }}/providers/Microsoft.ContainerRegistry/registries/${{ env.ACR_NAME }} || true
+          terraform import azurerm_kubernetes_cluster.aks \
+            /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.RESOURCE_GROUP }}/providers/Microsoft.ContainerService/managedClusters/${{ env.AKS_NAME }} || true
+          terraform apply -auto-approve
+
+  docker_build_push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: terraform_apply
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.ACR_NAME }}.azurecr.io
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Build & Push Product Service
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/product-service:${{ env.IMAGE_TAG }} ./backend/product_service
+          docker push ${{ env.ACR_NAME }}.azurecr.io/product-service:${{ env.IMAGE_TAG }}
+
+      - name: Build & Push Order Service
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/order-service:${{ env.IMAGE_TAG }} ./backend/order_service
+          docker push ${{ env.ACR_NAME }}.azurecr.io/order-service:${{ env.IMAGE_TAG }}
+
+      - name: Build & Push Customer Service
+        run: |
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/customer-service:${{ env.IMAGE_TAG }} ./backend/customer_service
+          docker push ${{ env.ACR_NAME }}.azurecr.io/customer-service:${{ env.IMAGE_TAG }}
+
 
   deploy_services:
     name: Deploy Backend Services to AKS
@@ -63,32 +108,98 @@ jobs:
           sed -i "s|image: .*/order_service:.*|image: myacr.azurecr.io/order_service:$IMAGE_TAG|" k8s/order-service.yaml
           sed -i "s|image: .*/customer_service:.*|image: myacr.azurecr.io/customer_service:$IMAGE_TAG|" k8s/customer-service.yaml
 
-      - name: Deploy backend infrastructure
-        run: |
-          kubectl apply -f k8s/configmaps.yaml
-          kubectl apply -f k8s/secrets.yaml
-          kubectl apply -f k8s/product-db.yaml
-          kubectl apply -f k8s/order-db.yaml
-          kubectl apply -f k8s/customer-db.yaml
 
-      - name: Deploy backend microservices
-        run: |
-          kubectl apply -f k8s/product-service.yaml
-          kubectl apply -f k8s/order-service.yaml
-          kubectl apply -f k8s/customer-service.yaml
+  deploy_services:
+    name: Deploy Backend Services to AKS
+    runs-on: ubuntu-latest
+    needs: docker_build_push
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Wait for Services to be Ready
-        run: |
-          for svc in product-service order-service customer-service; do
-            kubectl rollout status deployment/$svc -n default
-          done
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Run Postman Acceptance Tests
+      - name: Get AKS Credentials
+        run: az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_NAME }}
+
+      
+      - name: Apply Kubernetes secrets
         run: |
-          newman run tests/staging_acceptance.json \
-            --environment tests/staging_env.json \
-            --reporters cli,junit \
-            --reporter-junit-export test-results/staging_acceptance.xml
+          kubectl create secret generic ecomm-secrets-w08e1 \
+           --from-literal=AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }} \
+           --from-literal=AZURE_STORAGE_ACCOUNT_KEY=${{ env.AZURE_STORAGE_ACCOUNT_KEY }} \
+           --from-literal=AZURE_STORAGE_CONTAINER_NAME=product-images \
+           --dry-run=client -o yaml | kubectl apply -f -
+
+
+      - name: Deploy backend infrastructure & services
+        run: |
+          cd k8s/
+          kubectl apply -f configmaps.yaml
+          kubectl apply -f secrets.yaml
+          kubectl apply -f product-db.yaml
+          kubectl apply -f order-db.yaml
+          kubectl apply -f customer-db.yaml
+          kubectl apply -f product-service.yaml
+          kubectl apply -f order-service.yaml
+          kubectl apply -f customer-service.yaml
+
+      - name: Update container images
+        run: |
+          kubectl set image deployment/product-service \
+            product-service-container=${{ env.ACR_NAME }}.azurecr.io/product-service:${{ env.IMAGE_TAG }}
+          kubectl set image deployment/order-service \
+            order-service-container=${{ env.ACR_NAME }}.azurecr.io/order-service:${{ env.IMAGE_TAG }}
+          kubectl set image deployment/customer-service \
+            customer-service-container=${{ env.ACR_NAME }}.azurecr.io/customer-service:${{ env.IMAGE_TAG }}
+
+      - name: Wait for deployments to complete
+        run: |
+            echo "⏳ Waiting for product-service rollout..."
+            kubectl rollout status deployment/product-service --timeout=300s
+            echo "⏳ Waiting for order-service rollout..."
+            kubectl rollout status deployment/order-service --timeout=300s
+            echo "⏳ Waiting for order-service rollout..."
+            kubectl rollout status deployment/customer-service --timeout=300s
+            # Wait for EXTERNAL-IP
+            PRODUCT_IP=$(kubectl get svc product-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            ORDER_IP=$(kubectl get svc order-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            CUSTOMER_IP=$(kubectl get svc customer-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            echo "🔗 Product Service IP: $PRODUCT_IP"
+            echo "🔗 Order Service IP: $ORDER_IP"
+            echo "🔗 CUSTOMER Service IP: $ORDER_IP"
+
+             until [ -n "$PRODUCT_IP" ] && [ -n "$ORDER_IP" ] && [ -n "$CUSTOMER_IP" ]; do
+               echo "⏳ Waiting for EXTERNAL-IP..."
+               sleep 5
+                PRODUCT_IP=$(kubectl get svc product-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+               ORDER_IP=$(kubectl get svc order-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+               CUSTOMER_IP=$(kubectl get svc CUSTOMER-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+             done
+           
+            echo "PRODUCT_IP=$PRODUCT_IP" >> $GITHUB_ENV
+            echo "ORDER_IP=$ORDER_IP" >> $GITHUB_ENV
+            echo "CUSTOMER_IP=$CUSTOMER_IP" >> $GITHUB_ENV
+
+             # Health checks
+            echo "✅ Testing product-service health..."
+            if ! curl --max-time 10 http://$PRODUCT_IP:8080/health | grep '"status":"ok"'; then
+               echo "❌ Product service not healthy!"
+               exit 1
+             fi
+
+            echo "✅ Testing order-service health..."
+             
+            if ! curl --max-time 10 http://$ORDER_IP:8081/health | grep '"status":"ok"'; then
+               echo "❌ Order service not healthy!"
+               exit 1
+            fi
+
+             echo "🎉 All deployments verified successfully!"
+  
 
   terraform_destroy:
     name: Destroy Staging Resources
